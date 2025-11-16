@@ -94,17 +94,5 @@ def load_dataset(batch_size=8, dataset='CelebA', dataset_dir=None):
     return train_loader
 
 
-def visualize(data_loader, save_dir, mean_std=None):
-    if mean_std is not None:
-        d_mean, d_std = mean_std
-        dm = torch.as_tensor(d_mean)[:, None, None].cuda()
-        ds = torch.as_tensor(d_std)[:, None, None].cuda()
-
-    for training_images, y in data_loader:
-        if mean_std is not None:
-            training_images = training_images.cuda()
-            training_images = torch.clamp(training_images * ds + dm, 0, 1)
-        torchvision.utils.save_image(training_images, save_dir, nrow=8, padding=2)
-        break
 
 

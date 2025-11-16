@@ -570,12 +570,6 @@ class GaussianDiffusion(nn.Module):
         alphas_cumprod = torch.cumprod(alphas, dim=0)
         alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value = 1.)
 
-        # if is_student:
-        #     print("alphas_c_teacher shape", teacher.alphas_cumprod.shape, teacher.alphas_cumprod)
-        #     print("alphas_c shape", alphas_cumprod.shape, alphas_cumprod)
-        #     for t in range(0, timesteps):
-        #         print(teacher.alphas_cumprod[t*c_value])
-        #         print(alphas_cumprod[t])
 
         timesteps, = betas.shape
         self.num_timesteps = int(timesteps)
@@ -684,17 +678,8 @@ class GaussianDiffusion(nn.Module):
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def model_predictions(self, x, t, x_self_cond = None, clip_x_start = False, rederive_pred_noise = False):
-        # if self.is_student:
-        #     model_output = self.model(x, self.c_value*t, x_self_cond)
-        # else:
-        #     model_output = self.model(x, t, x_self_cond)
 
         model_output = self.model(x, t, x_self_cond)
-
-        # if self.is_student:
-        #     model_output = self.teacher.model(x, t*self.c_value, x_self_cond)
-        # else:
-        #     model_output = self.model(x, t, x_self_cond)
 
         maybe_clip = partial(torch.clamp, min = -1., max = 1.) if clip_x_start else identity
 
@@ -918,11 +903,6 @@ class GaussianDiffusion(nn.Module):
         else:
             model_out, sl = self.model(x, t, x_self_cond, get_sl=True)
 
-        # if teacher is None:
-        #     model_out = self.model(x, t, x_self_cond)
-        # else:
-        #     model_out = self.model(x, c_value*t, x_self_cond) # not necessary
-
         if teacher is not None:
             with torch.no_grad():
                 if self.mapping_sequence is None:
@@ -961,9 +941,6 @@ class GaussianDiffusion(nn.Module):
         loss = loss * extract(self.loss_weight, t, loss.shape)
         loss = loss.mean()
 
-        # if teacher is not None:
-        #     loss = loss + loss_t
-
         return loss
 
     def forward(self, img, *args, **kwargs):
@@ -989,189 +966,6 @@ class GaussianDiffusion(nn.Module):
 
         img = self.normalize(img)
         return self.p_losses(img, t, teacher=teacher, c_value=c_value, *args, **kwargs)
-
-    def pdistill_student_loss(self, img, teacher, *args, **kwargs):
-
-        assert int(teacher.num_timesteps / self.num_timesteps) == 2
-
-        b, c, h, w, device, img_size, = *img.shape, img.device, self.image_size
-        assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
-        t = torch.randint(0, self.num_timesteps, (b,), device=device).long()
-
-        img = self.normalize(img)
-        return self.pdistill_losses(img, t, teacher=teacher, *args, **kwargs)
-
-    def cdistillation_losses(self, x_start, t, noise = None, offset_noise_strength = None, teacher=None):
-        b, c, h, w = x_start.shape
-
-        noise = default(noise, lambda: torch.randn_like(x_start))
-
-        # x is \sqrt{\bar{\alpha}_t} x_0 + \sqrt{1-\bar{\alpha}_t} \epsilon)
-        # x = self.q_sample(x_start=x_start, t=t, noise=noise)
-
-        t_1 = (t+1).reshape(b, *((1,) * (len(x_start.shape)- 1)))
-        x_tplus1 = x_start + (t_1*noise)
-        with torch.no_grad():
-            x_hat_t = x_tplus1 - (t_1 / extract(self.sqrt_one_minus_alphas_cumprod, t+1, x_start.shape)) * teacher.model(x_tplus1, t+1, None)
-
-        out2 = self.model(x_hat_t, t).detach()
-
-        out1 = self.model(x_tplus1, t+1)
-
-        loss_t = F.mse_loss(out1, out2, reduction = 'none')
-
-        loss_t = reduce(loss_t, 'b ... -> b', 'mean')
-
-        loss_t = loss_t.mean()
-        return loss_t
-
-    def cdistillation_student_loss(self, img, teacher, *args, **kwargs):
-        b, c, h, w, device, img_size, = *img.shape, img.device, self.image_size
-        assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
-        t = torch.randint(0, self.num_timesteps-1, (b,), device=device).long()
-
-        img = self.normalize(img)
-        return self.cdistillation_losses(img, t, teacher=teacher, *args, **kwargs)
-
-    def pdistill_losses(self, x_start, t, noise = None, offset_noise_strength = None, teacher=None):
-        b, c, h, w = x_start.shape
-
-        noise = default(noise, lambda: torch.randn_like(x_start))
-
-        # offset noise - https://www.crosslabs.org/blog/diffusion-with-offset-noise
-
-        # self.offset_noise_strength is 0 by default
-        offset_noise_strength = default(offset_noise_strength, self.offset_noise_strength)
-
-        if offset_noise_strength > 0.:
-            offset_noise = torch.randn(x_start.shape[:2], device = self.device)
-            noise += offset_noise_strength * rearrange(offset_noise, 'b c -> b c 1 1')
-
-        # noise sample
-
-        # if doing self-conditioning, 50% of the time, predict x_start from current set of times
-        # and condition with unet with that
-        # this technique will slow down training by 25%, but seems to lower FID significantly
-
-        # x is \sqrt{\bar{\alpha}_t} x_0 + \sqrt{1-\bar{\alpha}_t} \epsilon)
-        x = self.q_sample(x_start=x_start, t=t, noise=noise)
-
-        # self.self_condition is False by default
-        x_self_cond = None
-
-        model_out = self.model(x, t, x_self_cond)
-        if teacher is not None:
-            with torch.no_grad():
-                x_teacher = teacher.q_sample(x_start=x_start, t=2*t, noise=noise)
-
-                model_out_teacher = teacher.model(x_teacher, t*2, x_self_cond)
-
-            loss_t = F.mse_loss(model_out, model_out_teacher, reduction = 'none')
-
-            loss_t = reduce(loss_t, 'b ... -> b', 'mean')
-
-            loss_t = loss_t.mean()
-            return loss_t
-
-        if self.objective == 'pred_noise':
-            target = noise
-        elif self.objective == 'pred_x0':
-            target = x_start
-        elif self.objective == 'pred_v':
-            v = self.predict_v(x_start, t, noise)
-            target = v
-        else:
-            raise ValueError(f'unknown objective {self.objective}')
-
-        loss = F.mse_loss(model_out, target, reduction = 'none')
-        loss = reduce(loss, 'b ... -> b', 'mean')
-
-        # print("loss weight:", self.loss_weight)
-        loss = loss * extract(self.loss_weight, t, loss.shape)
-        loss = loss.mean()
-
-        return loss
-
-    def ct_loss(self, img, epoch, iter, *args, **kwargs):
-        # print("In forward func >>>>>>>>>>>~~~~~~~~~~")
-
-        b, c, h, w, device, img_size, = *img.shape, img.device, self.image_size
-        assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
-        t = torch.randint(0, self.num_timesteps-1, (b,), device=device).long()
-
-        img = self.normalize(img)
-        return self.ct_p_losses(img, t, *args, **kwargs)
-
-    def ct_p_losses(self, x_start, t, noise = None, offset_noise_strength = None, teacher=None, c_value=0):
-        b, c, h, w = x_start.shape
-
-        noise = default(noise, lambda: torch.randn_like(x_start))
-
-        # x is \sqrt{\bar{\alpha}_t} x_0 + \sqrt{1-\bar{\alpha}_t} \epsilon)
-        x = self.q_sample(x_start = x_start, t = t, noise = noise)
-
-        x_1 = self.q_sample(x_start = x_start, t = t+1, noise = noise)
-
-        # self.self_condition is False by default
-        x_self_cond = None
-
-        # model_out is \epsilon_theta(x, t)
-        model_out = self.model(x, t, x_self_cond)
-
-        with torch.no_grad():
-            model_out1 = self.model(x_1, t+1, x_self_cond).detach()
-        loss_ct = F.mse_loss(model_out, model_out1, reduction='none')
-
-        if self.objective == 'pred_noise':
-            target = noise
-        elif self.objective == 'pred_x0':
-            target = x_start
-        elif self.objective == 'pred_v':
-            v = self.predict_v(x_start, t, noise)
-            target = v
-        else:
-            raise ValueError(f'unknown objective {self.objective}')
-
-        loss = F.mse_loss(model_out, target, reduction = 'none')
-
-        loss = loss + loss_ct
-
-        loss = reduce(loss, 'b ... -> b', 'mean')
-
-        loss = loss * extract(self.loss_weight, t, loss.shape)
-        loss = loss.mean()
-
-        return loss
-
-    def ct_p_losses_old(self, x_start, t, noise = None, offset_noise_strength = None):
-        b, c, h, w = x_start.shape
-
-        noise = default(noise, lambda: torch.randn_like(x_start))
-
-        # noise sample
-
-        # x is \sqrt{\bar{\alpha}_t} x_0 + \sqrt{1-\bar{\alpha}_t} \epsilon)
-        # x = self.q_sample(x_start = x_start, t = t, noise = noise)
-
-        t_1 = (t+1).reshape(b, *((1,) * (len(x_start.shape)- 1)))
-        t_rshape = t.reshape(b, *((1,) * (len(x_start.shape)- 1)))
-
-        # self.self_condition is False by default
-        x_self_cond = None
-
-        # model_out is \epsilon_theta(x, t)
-        target = self.model(x_start + (t_rshape * noise), t, x_self_cond).detach()
-
-        model_out = self.model(x_start + (t_1 * noise), t+1, x_self_cond)
-
-        loss = F.mse_loss(model_out, target, reduction = 'none')
-        loss = reduce(loss, 'b ... -> b', 'mean')
-
-        # print("loss weight:", self.loss_weight)
-        loss = loss * extract(self.loss_weight, t, loss.shape)
-        loss = loss.mean()
-
-        return loss
 
 
 # dataset classes
