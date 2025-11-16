@@ -1,6 +1,7 @@
 sampling_res
 .idea
 saved_models
+trained_model
 data
 submit.sh
 *pyc
