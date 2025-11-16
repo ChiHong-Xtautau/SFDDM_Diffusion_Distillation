@@ -29,10 +29,14 @@ After running the example "run.py", we can get the following expected Results. P
 - the distilled student generators will be saved in "./saved_models"
 - the sampling results from the student will be saved in "./sampling_res"
 - sampling from the student before distillation
+
 ![](./readme_imgs/res_0.jpg)
 - sampling from the student after one epoch of distillation
+
 ![](./readme_imgs/res_1.jpg)
 - sampling from the student after 10 epochs of distillation
+
 ![](./readme_imgs/res_student.jpg)
 - sampling from the teacher
+
 ![](./readme_imgs/res_teacher.jpg)
