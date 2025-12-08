@@ -38,7 +38,7 @@ After running the example "run.py", we can get the following expected Results. P
 
 - the distilled student generators will be saved in "./saved_models"
 - the sampling results from the student will be saved in "./sampling_res"
-- The PSNR value increases after the training, indicating that the image quality of the student is approaching that of the teacher.
+- The PSNR value increases after the training
 - sampling from the student before distillation
 
 ![](./readme_imgs/res_0.jpg)
