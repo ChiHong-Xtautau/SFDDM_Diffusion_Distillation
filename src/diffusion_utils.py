@@ -81,6 +81,10 @@ class DiffusionUtils(object):
         shape = (1, self.student_diff.channels, self.student_diff.image_size, self.student_diff.image_size)
         input_noise = torch.randn(shape, device=self.student_diff.device)
 
+        s_img = self.sample(res_id="student", num_img=1, nrow=8, use_student=True, input_noise=input_noise)
+        t_img = self.sample(res_id="teacher", num_img=1, nrow=8, use_student=False, input_noise=input_noise)
+        psnr_value = self.PSNR(s_img, t_img)
+
         self.sample(res_id=0, num_img=32, nrow=8, save_dir='./sampling_res/res_{}_s.jpg', use_student=True)
         for e in range(start_epochs, epochs):
             print('epoch: ', e + 1, ' / ', epochs)
