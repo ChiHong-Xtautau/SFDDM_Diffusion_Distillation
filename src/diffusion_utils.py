@@ -84,6 +84,7 @@ class DiffusionUtils(object):
         s_img = self.sample(res_id="student", num_img=1, nrow=8, use_student=True, input_noise=input_noise)
         t_img = self.sample(res_id="teacher", num_img=1, nrow=8, use_student=False, input_noise=input_noise)
         psnr_value = self.PSNR(s_img, t_img)
+        print("The current psnr value:", psnr_value)
 
         self.sample(res_id=0, num_img=32, nrow=8, save_dir='./sampling_res/res_{}_s.jpg', use_student=True)
         for e in range(start_epochs, epochs):
@@ -114,7 +115,7 @@ class DiffusionUtils(object):
             s_img = self.sample(res_id="student", num_img=1, nrow=8, use_student=True, input_noise=input_noise)
             t_img = self.sample(res_id="teacher", num_img=1, nrow=8, use_student=False, input_noise=input_noise)
             psnr_value = self.PSNR(s_img, t_img)
-            print("the current psnr value:", psnr_value)
+            print("The current psnr value:", psnr_value)
 
     @staticmethod
     def PSNR(dummy_data, gt_data):
