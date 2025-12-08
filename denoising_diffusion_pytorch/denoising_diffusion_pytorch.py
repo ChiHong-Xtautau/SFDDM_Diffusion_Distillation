@@ -563,7 +563,7 @@ class GaussianDiffusion(nn.Module):
             alphas = torch.as_tensor(alphas, device=teacher.device)
             betas = 1. - alphas
 
-            print(alphas.shape, alphas)
+            # print(alphas.shape, alphas)
 
         # print("alphas shape", alphas.shape) # torch.Size([1024]) equals the number of steps
 

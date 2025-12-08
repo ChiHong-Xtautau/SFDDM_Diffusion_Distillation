@@ -78,15 +78,9 @@ class DiffusionUtils(object):
 
         optimizer = torch.optim.Adam(self.student_diff.parameters(), lr=0.0002)
 
-        shape = (32, self.student_diff.channels, self.student_diff.image_size, self.student_diff.image_size)
-        input_noise = torch.randn(shape, device=self.student_diff.device)
-
-        s_img = self.sample(res_id="student", num_img=32, nrow=8, use_student=True, input_noise=input_noise)
-        t_img = self.sample(res_id="teacher", num_img=32, nrow=8, use_student=False, input_noise=input_noise)
-        psnr_value = self.PSNR(s_img, t_img)
-        print("The current psnr value:", psnr_value)
-
         self.sample(res_id=0, num_img=32, nrow=8, save_dir='./sampling_res/res_{}_s.jpg', use_student=True)
+        torch.save(self.student_diff.state_dict(), './saved_models/diffusion_{}_epoch_{}.pth'.format(model_name, 0))
+
         for e in range(start_epochs, epochs):
             print('epoch: ', e + 1, ' / ', epochs)
             i = 0
@@ -112,23 +106,6 @@ class DiffusionUtils(object):
             # self.sample(res_id=e + 1)
             self.sample(res_id=e + 1, num_img=32, nrow=8, save_dir='./sampling_res/res_{}_s.jpg', use_student=True)
 
-            s_img = self.sample(res_id="student", num_img=32, nrow=8, use_student=True, input_noise=input_noise)
-            t_img = self.sample(res_id="teacher", num_img=32, nrow=8, use_student=False, input_noise=input_noise)
-            psnr_value = self.PSNR(s_img, t_img)
-            print("The current psnr value:", psnr_value)
-
-    @staticmethod
-    def PSNR(dummy_data, gt_data):
-        '''
-        PSNR metric
-        '''
-        mse = torch.mean((dummy_data - gt_data) ** 2).item()
-        if (mse == 0):  # MSE is zero means no noise is present in the signal .
-            # Therefore PSNR have no importance.
-            return 100
-        max_pixel = 255.0
-        psnr = 20 * log10(max_pixel / sqrt(mse))
-        return psnr
 
 
 

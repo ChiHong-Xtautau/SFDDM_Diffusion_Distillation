@@ -2,7 +2,7 @@ from denoising_diffusion_pytorch import Unet, GaussianDiffusion
 from src.load_data import load_dataset
 import config as cfg
 from src.diffusion_utils import DiffusionUtils
-
+from math import log10, sqrt
 import os
 import torch
 
@@ -30,7 +30,19 @@ def build_diffusion(image_size, objective="pred_noise", timesteps=1024, sampling
     ).cuda()
     return diffusion
 
-def sampling_student(epoch=10):
+def PSNR(dummy_data, gt_data):
+    '''
+    PSNR metric
+    '''
+    mse = torch.mean((dummy_data - gt_data) ** 2).item()
+    if (mse == 0):  # MSE is zero means no noise is present in the signal .
+        # Therefore PSNR have no importance.
+        return 100
+    max_pixel = 255.0
+    psnr = 20 * log10(max_pixel / sqrt(mse))
+    return psnr
+
+def sampling_student(epoch=10, num_img=32, input_noise=None, no_psnr=False):
     # sampling
     teacher = build_diffusion(image_size=32, timesteps=1024, objective='pred_noise', using_ddim=True)
 
@@ -45,12 +57,15 @@ def sampling_student(epoch=10):
     s_dir = 'saved_models/diffusion_Cifar10_32x32_128_student_pnoise_epoch_%d.pth' % epoch
     diff_util.load_trained_student(s_dir)
 
-    num_img = 32
-    shape = (num_img, student.channels, student.image_size, student.image_size)
-    input_noise = torch.randn(shape, device=student.device)
+    if input_noise == None:
+        shape = (num_img, student.channels, student.image_size, student.image_size)
+        input_noise = torch.randn(shape, device=student.device)
 
-    sampled_img = diff_util.sample(res_id="student", num_img=num_img, nrow=8, use_student=True, input_noise=input_noise)
-    sampled_img = diff_util.sample(res_id="teacher", num_img=num_img, nrow=8, use_student=False, input_noise=input_noise)
+    sampled_img_student = diff_util.sample(res_id="student_{}".format(epoch), num_img=num_img, nrow=8, use_student=True, input_noise=input_noise)
+    sampled_img_teacher = diff_util.sample(res_id="teacher_{}".format(epoch), num_img=num_img, nrow=8, use_student=False, input_noise=input_noise)
+
+    if not no_psnr:
+        print("PSNR value:", PSNR(sampled_img_teacher, sampled_img_student))
 
 def train_teacher_diffusion():
     # for training a teacher diffusion model from scratch
@@ -163,5 +178,16 @@ if __name__ == '__main__':
         os.makedirs("./saved_models")
 
     train_student()
-    sampling_student(epoch=10)
+
+    num_img = 1
+    shape = (num_img, 3, 32, 32)
+    input_noise = torch.randn(shape).cuda()
+
+    # show PSNR on diffirent epoch
+    sampling_student(epoch=0, num_img=num_img, input_noise=input_noise)
+    sampling_student(epoch=1, num_img=num_img, input_noise=input_noise)
+    sampling_student(epoch=10, num_img=num_img, input_noise=input_noise)
+
+    # show results on final epoch
+    sampling_student(epoch=10, no_psnr=True)
 
