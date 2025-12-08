@@ -52,7 +52,7 @@ def load_dataset(batch_size=8, dataset='CelebA', dataset_dir=None):
         train_set = datasets.LSUN(root=dataset_dir, classes=['church_outdoor_train'],
                              transform=transforms.Compose([
                                         transforms.CenterCrop((256, 256)),
-                                        transforms.Resize([64, 64]),
+                                        transforms.Resize([128, 128]),
                                         # transforms.Resize([128, 128]),
                                         transforms.ToTensor(),
                                         # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),

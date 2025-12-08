@@ -11,6 +11,16 @@ Then you will get the pretrained diffusion model on imagenet, and you can run th
 
 An example of running the algorithm is shown in "run.py".
 
+# Downloading LSUN datasets
+The teacher and the student model of this project can be trained by LSUN datasets like "bedroom" and "church".
+Before the training, you may download the dataset into the default directory of this project '../datasets'.
+The method of downloading LSUN datasets is show in https://github.com/fyu/lsun.
+
+If you want to use datasets other than cifar10, you need to download the datasets and train the teacher and the student model.
+
+- To train the teacher: see "train_teacher_diffusion()" in the "run.py".
+- To train the student: see "train_student()" in the "run.py".
+
 # Before running
 To run the algorithm, please extract the pretrained diffusion model in "./trained_model". Please use the command
 - sudo apt install p7zip-full

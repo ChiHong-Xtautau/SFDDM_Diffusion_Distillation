@@ -52,6 +52,43 @@ def sampling_student(epoch=10):
     sampled_img = diff_util.sample(res_id="student", num_img=num_img, nrow=8, use_student=True, input_noise=input_noise)
     sampled_img = diff_util.sample(res_id="teacher", num_img=num_img, nrow=8, use_student=False, input_noise=input_noise)
 
+def train_teacher_diffusion():
+    # for training a teacher diffusion model from scratch
+
+    dst = 'Cifar10'
+    if dst == 'Bedroom':
+        data_loader = load_dataset(batch_size=64, dataset='Bedroom', dataset_dir=cfg.DATASET_DIR)
+
+        diff_util = DiffusionUtils(build_diffusion(image_size=128, timesteps=1024, objective='pred_v'))
+
+        diff_util.set_dataloader(data_loader)
+        diff_util.train(epochs=50, model_name="bedroom_1024_128x128")
+
+    elif dst == 'Church':
+        data_loader = load_dataset(batch_size=64, dataset='Church', dataset_dir=cfg.DATASET_DIR)
+
+        diff_util = DiffusionUtils(build_diffusion(image_size=128, timesteps=1024, objective='pred_v'))
+
+        diff_util.set_dataloader(data_loader)
+        diff_util.train(epochs=50, model_name="church_1024_128x128")
+    elif dst == 'Cifar10':
+        data_loader = load_dataset(batch_size=50, dataset='Cifar10', dataset_dir=cfg.DATASET_DIR)
+
+        diff_util = DiffusionUtils(build_diffusion(image_size=32, timesteps=1024, objective='pred_v'))
+
+        diff_util.set_dataloader(data_loader)
+        # d_dir = 'saved_models/diffusion_CelebA_1024_64x64_epoch_5.pth'
+        # diff_util.load_trained_model(d_dir)
+        diff_util.train(epochs=10, start_epochs=0, model_name="Cifar10_1024_32x32")
+    elif dst == 'CelebA':
+        data_loader = load_dataset(batch_size=48, dataset='CelebA', dataset_dir=cfg.DATASET_DIR)
+
+        diff_util = DiffusionUtils(build_diffusion(image_size=64, timesteps=1024, objective='pred_noise'))
+
+        diff_util.set_dataloader(data_loader)
+
+        diff_util.train(epochs=30, start_epochs=0, model_name="CelebA_1024_64x64")
+
 
 def train_student():
     dst = 'Cifar10'
@@ -70,9 +107,53 @@ def train_student():
         diff_util.set_dataloader(data_loader)
 
         diff_util.train_student(epochs=10, start_epochs=0, model_name="Cifar10_32x32_128_student_pnoise")
+    elif dst == 'Church':
 
-    else:
-        pass
+        teacher = build_diffusion(image_size=128, timesteps=1024, objective='pred_v')
+
+        mapping_sequence = [int(i * (10.24)) for i in range(100)]
+
+        student = build_diffusion(image_size=128, timesteps=100, objective='pred_v', is_student=True, teacher=teacher, use_pdistill=False, mapping_sequence=mapping_sequence)
+
+        diff_util = DiffusionUtils(teacher, student_diff=student)
+
+        d_dir = 'saved_models/church_1024_128x128_pv/diffusion_church_1024_128x128_pv_epoch_50.pth'
+
+        diff_util.load_trained_model(d_dir)
+
+        data_loader = load_dataset(batch_size=40, dataset='Church', dataset_dir=cfg.DATASET_DIR)
+
+        diff_util.set_dataloader(data_loader)
+
+        diff_util.train_student(epochs=50, start_epochs=0, model_name="Church_128x128_100_student")
+    elif dst == 'CelebA':
+        teacher = build_diffusion(image_size=64, timesteps=1024, objective='pred_noise')
+        student = build_diffusion(image_size=64, timesteps=16, objective='pred_noise', is_student=True, teacher=teacher)
+
+        diff_util = DiffusionUtils(teacher, student_diff=student)
+
+        d_dir = 'saved_models/celeba_pnoise_64x64_1024/diffusion_CelebA_1024_64x64_epoch_30.pth'
+        diff_util.load_trained_model(d_dir)
+
+        data_loader = load_dataset(batch_size=25, dataset='CelebA', dataset_dir=cfg.DATASET_DIR)
+        diff_util.set_dataloader(data_loader)
+
+        diff_util.train_student(epochs=30, start_epochs=0, model_name="CelebA_64x64_16_student")
+    elif dst == 'Bedroom':
+        teacher = build_diffusion(image_size=128, timesteps=1024, objective='pred_v')
+
+        student = build_diffusion(image_size=128, timesteps=100, objective='pred_v', is_student=True, teacher=teacher,
+                                  use_pdistill=True, mapping_sequence=None)
+
+        diff_util = DiffusionUtils(teacher, student_diff=student)
+
+        d_dir = 'saved_models/Bedroom_128x128_1024_pv/diffusion_bedroom_1024_128x128_pv_epoch_50.pth'
+        diff_util.load_trained_model(d_dir)
+
+        data_loader = load_dataset(batch_size=40, dataset='Bedroom', dataset_dir=cfg.DATASET_DIR)
+        diff_util.set_dataloader(data_loader)
+
+        diff_util.train_student(epochs=50, start_epochs=0, model_name="Bedroom_128x128_100_student")
 
 
 if __name__ == '__main__':
