@@ -38,7 +38,7 @@ After running the example "run.py", we can get the following expected Results. P
 
 - the distilled student generators will be saved in "./saved_models"
 - the sampling results from the student will be saved in "./sampling_res"
-- The PSNR value increases after the training, the higher the better
+- The PSNR value increases after the training. That means the image from the student is closing to the teacher. This metric is very useful for testing two similar batches. If you want to evaluate the generated images comparing to the training data, please use FID.
 - sampling from the student before distillation
 
 ![](./readme_imgs/res_0.jpg)
