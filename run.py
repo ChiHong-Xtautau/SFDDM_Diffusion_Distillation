@@ -183,7 +183,7 @@ if __name__ == '__main__':
     shape = (num_img, 3, 32, 32)
     input_noise = torch.randn(shape).cuda()
 
-    # show PSNR on diffirent epoch
+    # show PSNR on diffirent epoch for comparing the images from the student and the teacher
     sampling_student(epoch=0, num_img=num_img, input_noise=input_noise)
     sampling_student(epoch=1, num_img=num_img, input_noise=input_noise)
     sampling_student(epoch=10, num_img=num_img, input_noise=input_noise)
